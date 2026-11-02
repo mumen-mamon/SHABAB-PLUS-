@@ -546,12 +546,20 @@ export default function App() {
       if (hash === '/display' || path.endsWith('/display')) return 'display';
       if (hash === '/qr' || path.endsWith('/qr')) return 'qr';
       if (hash === '/config' || path.endsWith('/config')) return 'config';
+      if (hash === '/split' || path.endsWith('/split')) return 'split';
       if (hash === '/admin' || path.endsWith('/admin')) return 'display';
     }
     return 'register';
   });
 
-  const [isOrganizerAuthenticated, setIsOrganizerAuthenticated] = useState(false);
+  // المنظم يبقى مسجّل دخوله طالما التبويب مفتوح (حتى بعد تحديث الصفحة)
+  const [isOrganizerAuthenticated, setIsOrganizerAuthenticated] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && window.sessionStorage.getItem('shabab_organizer') === '1';
+    } catch (_) {
+      return false;
+    }
+  });
   const [organizerPasscode, setOrganizerPasscode] = useState('');
   const [passcodeError, setPasscodeError] = useState(false);
   const [showPasscodeModal, setShowPasscodeModal] = useState(false);
@@ -602,16 +610,49 @@ export default function App() {
     }
   }, []);
 
+  // أي رابط منظم (#/display, #/qr, ...) يتم تتبعه عند تغيير الـ hash
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      const map = {
+        '/display': 'display',
+        '/qr': 'qr',
+        '/config': 'config',
+        '/split': 'split',
+        '/admin': 'display',
+        '/register': 'register'
+      };
+      setActiveView(map[hash] || 'register');
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
   const handleOrganizerLogin = (e) => {
     e.preventDefault();
     if (organizerPasscode.trim() === 'shabab2026' || organizerPasscode.trim() === '1234') {
       setIsOrganizerAuthenticated(true);
-      setShowPasscodeModal(false);
+      try {
+        window.sessionStorage.setItem('shabab_organizer', '1');
+      } catch (_) {}
+      setOrganizerPasscode('');
       setPasscodeError(false);
     } else {
       setPasscodeError(true);
     }
   };
+
+  const handleOrganizerLogout = () => {
+    setIsOrganizerAuthenticated(false);
+    try {
+      window.sessionStorage.removeItem('shabab_organizer');
+    } catch (_) {}
+    navigateTo('register');
+  };
+
+  // الزائر العادي لا يرى إلا شاشة التسجيل؛ باقي الشاشات تحتاج رمز المنظم
+  const needsOrganizerLogin = activeView !== 'register' && !isOrganizerAuthenticated;
+  const effectiveView = needsOrganizerLogin ? 'register' : activeView;
 
   const handleRequestOrganizerAccess = (targetView = 'display') => {
     if (isOrganizerAuthenticated) {
@@ -1043,10 +1084,63 @@ export default function App() {
       dir="rtl"
       lang="ar"
       style={{ fontFamily: "'Cairo', 'Tajawal', sans-serif" }}
-      className="min-h-screen bg-[#F2EFE6] text-[#0B2D50] flex flex-col selection:bg-[#A61936] selection:text-white pb-16"
+      className={`min-h-screen bg-[#F2EFE6] text-[#0B2D50] flex flex-col selection:bg-[#A61936] selection:text-white ${
+        isOrganizerAuthenticated ? 'pb-16' : ''
+      }`}
     >
+      {/* نافذة رمز المنظم: تظهر فقط لمن يحاول فتح شاشة غير التسجيل */}
+      {needsOrganizerLogin && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <form
+            onSubmit={handleOrganizerLogin}
+            className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl text-center"
+          >
+            <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-[#0B2D50]/10 flex items-center justify-center text-[#0B2D50]">
+              <Lock className="w-7 h-7" />
+            </div>
+            <h2 className="text-lg font-black text-[#0B2D50] mb-1">دخول المنظمين</h2>
+            <p className="text-xs font-semibold text-[#0B2D50]/60 mb-4">
+              أدخل رمز المنظم لعرض باقي الشاشات
+            </p>
+            <input
+              type="password"
+              autoFocus
+              value={organizerPasscode}
+              onChange={(e) => {
+                setOrganizerPasscode(e.target.value);
+                setPasscodeError(false);
+              }}
+              placeholder="رمز المنظم"
+              className="w-full text-center font-bold rounded-xl px-4 py-3 bg-[#F2EFE6] border border-[#0B2D50]/20 focus:outline-none focus:ring-2 focus:ring-[#A61936]"
+            />
+            {passcodeError && (
+              <p className="mt-2 text-xs font-bold text-[#A61936]">الرمز غير صحيح</p>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 py-3 rounded-xl bg-[#A61936] text-white font-black text-sm hover:bg-[#8e142d]"
+              >
+                دخول
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOrganizerPasscode('');
+                  setPasscodeError(false);
+                  navigateTo('register');
+                }}
+                className="px-4 py-3 rounded-xl bg-[#0B2D50]/10 text-[#0B2D50] font-bold text-sm"
+              >
+                رجوع
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* شريط المنظمين العلوي */}
-      {activeView !== 'register' && !isFullscreen && (
+      {isOrganizerAuthenticated && activeView !== 'register' && !isFullscreen && (
         <nav
           aria-label="التنقل بين شاشات الملتقى للمنظمين"
           className="sticky top-0 z-50 bg-[#0B2D50] text-white shadow-md border-b border-white/10 px-3 sm:px-6 py-2.5"
@@ -1131,7 +1225,7 @@ export default function App() {
       {/* المحتوى الرئيسي */}
       <main className="flex-1 relative">
         {(() => {
-          switch (activeView) {
+          switch (effectiveView) {
             case 'register':
               return (
                 <ParticipantRegistrationPage
@@ -1249,6 +1343,7 @@ export default function App() {
       </main>
 
       {/* شريط التنقل السفلي السريع والدائم لرؤية جميع الشاشات بسهولة */}
+      {isOrganizerAuthenticated && (
       <div className="fixed bottom-3 left-1/2 transform -translate-x-1/2 z-50 bg-[#0B2D50]/95 backdrop-blur-md text-white px-4 py-2 rounded-2xl shadow-2xl border border-white/20 flex items-center gap-2">
         <button
           type="button"
@@ -1292,7 +1387,19 @@ export default function App() {
           <Columns className="w-4 h-4" />
           <span>👀 الشاشتين معاً</span>
         </button>
+
+        <div className="w-px h-5 bg-white/20" />
+
+        <button
+          type="button"
+          onClick={handleOrganizerLogout}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-white/70 hover:bg-white/10"
+        >
+          <Unlock className="w-4 h-4" />
+          <span>خروج</span>
+        </button>
       </div>
+      )}
     </div>
   );
 }
