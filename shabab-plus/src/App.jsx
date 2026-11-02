@@ -5,7 +5,6 @@ import {
   collection,
   doc,
   setDoc,
-  getDoc,
   deleteDoc,
   onSnapshot
 } from 'firebase/firestore';
@@ -16,7 +15,6 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import {
-  Check,
   Sparkles,
   Users,
   QrCode,
@@ -24,22 +22,15 @@ import {
   Smartphone,
   Settings,
   ShieldCheck,
-  Wifi,
-  WifiOff,
   RefreshCw,
-  Copy,
   CheckCircle2,
   AlertCircle,
-  Info,
   Maximize2,
   Minimize2,
-  Upload,
   Play,
-  Layers,
   Activity,
   Lock,
   Unlock,
-  Trash2,
   Columns
 } from 'lucide-react';
 
@@ -57,9 +48,7 @@ const firebaseConfig = {
   measurementId: rawFirebaseConfig.measurementId || "G-FHVZGFY6JJ",
   ...rawFirebaseConfig
 };
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'shabab-plus-c0986';
 
-// التكفل بتهيئة Firebase فقط عند توفر مفتاح حقيقي أو وضع الاحتياط المحالي Safely Initialize
 let app, db, auth;
 let isFirebaseAvailable = false;
 
@@ -108,25 +97,25 @@ function ShababPlusLogo({ className = 'w-16 h-16', customUrl = '' }) {
 }
 
 // ============================================================================
-// 3. مكون شاشة تسجيل المشارك (صفحة مستقلة مخصصة للهواتف)
+// 3. مكون شاشة تسجيل المشارك (الاسم ← سؤال الجاهزية ← انضم الآن ← ترحيب)
 // ============================================================================
 function ParticipantRegistrationPage({
   existingRegistration,
   onRegisterSubmit,
   registrationStatus,
   registrationError,
-  checked,
-  onToggleCheckbox,
-  checkboxSyncState,
   customLogoUrl,
   isConnected
 }) {
   const [fullName, setFullName] = useState('');
+  const [isReady, setIsReady] = useState(false);
   const [nameError, setNameError] = useState('');
+  const [readyError, setReadyError] = useState('');
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
     const trimmed = fullName.trim();
+
     if (!trimmed) {
       setNameError('يرجى كتابة الاسم الثلاثي أو الكامل للبدء');
       return;
@@ -135,8 +124,14 @@ function ParticipantRegistrationPage({
       setNameError('الاسم قصير جداً، يرجى كتابة الاسم الكامل');
       return;
     }
+    if (!isReady) {
+      setReadyError('يرجى تأكيد جاهزيتك قبل الانضمام');
+      return;
+    }
+
     setNameError('');
-    onRegisterSubmit(trimmed);
+    setReadyError('');
+    onRegisterSubmit(trimmed, isReady);
   };
 
   return (
@@ -166,45 +161,25 @@ function ParticipantRegistrationPage({
         </div>
       </header>
 
-      {/* بطاقة التسجيل والتشغيل الرئيسية */}
       <main className="my-auto py-4">
         {existingRegistration || registrationStatus === 'success' ? (
-          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-emerald-500/30 text-center animate-fadeIn">
-            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
-              <CheckCircle2 className="w-10 h-10" />
+          /* ====== شاشة الترحيب بعد الانضمام ====== */
+          <div className="bg-white rounded-3xl p-8 shadow-xl border-2 border-emerald-500/30 text-center animate-fadeIn">
+            <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-5 text-emerald-600">
+              <CheckCircle2 className="w-12 h-12" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-[#0B2D50] mb-2">
-              اهلا بك فيع عائلة شباب+!
+            <h2 className="text-2xl sm:text-3xl font-black text-[#0B2D50] mb-3">
+              أهلاً بك في عائلة شباب<span className="text-[#A61936]">+</span> 🎉
             </h2>
-            <p className="text-sm font-extrabold text-[#A61936] mb-6">
-              أهلاً بك: {existingRegistration?.displayName || fullName}
+            <p className="text-base font-extrabold text-[#A61936]">
+              {existingRegistration?.displayName || fullName}
             </p>
-
-            {/* مربع الجاهزية التفاعلي */}
-            <div className="bg-[#F2EFE6] p-5 rounded-2xl border border-[#0B2D50]/15">
-              <h3 className="text-sm font-bold text-[#0B2D50] mb-3">
-              جاهز تكون جزء من الرحلة ؟
-              </h3>
-              <label className="inline-flex items-center gap-3 cursor-pointer select-none bg-white px-5 py-3 rounded-xl border border-[#0B2D50]/20 shadow-sm active:scale-95 transition-transform">
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(e) => onToggleCheckbox(e.target.checked)}
-                  className="w-6 h-6 text-[#A61936] rounded focus:ring-[#A61936] accent-[#A61936]"
-                />
-                <span className="text-base font-extrabold text-[#0B2D50]">
-                  {checked ? 'أنا جاهز ومستعد! 🚀' : 'اضغط هنا لتاكيد جاهزيتك'}
-                </span>
-              </label>
-
-              <div className="mt-3 text-xs text-[#0B2D50]/60">
-                {checkboxSyncState === 'sending' && 'جاري الإرسال للقاعة...'}
-                {checkboxSyncState === 'delivered' && 'تم نقل التأثير للشاشة الرئيسية!'}
-                {checkboxSyncState === 'error' && 'حاول مرة أخرى.'}
-              </div>
-            </div>
+            <p className="text-xs font-semibold text-[#0B2D50]/60 mt-4">
+              تم تسجيلك بنجاح، شاهد اسمك على شاشة القاعة الآن!
+            </p>
           </div>
         ) : (
+          /* ====== نموذج التسجيل ====== */
           <form
             onSubmit={handleFormSubmit}
             className="bg-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#0B2D50]/10 text-right"
@@ -213,7 +188,8 @@ function ParticipantRegistrationPage({
               سجّل اسمك لبدء رحلتك في شباب+
             </h2>
 
-            <div className="mb-4">
+            {/* 1) الاسم */}
+            <div className="mb-5">
               <label className="block text-xs font-bold text-[#0B2D50] mb-2">
                 الاسم الكامل / الثلاثي
               </label>
@@ -228,9 +204,31 @@ function ParticipantRegistrationPage({
                 className="w-full text-right font-bold rounded-xl px-4 py-3 bg-[#F2EFE6] border border-[#0B2D50]/20 focus:outline-none focus:ring-2 focus:ring-[#A61936]"
               />
               {nameError && (
-                <p className="mt-1.5 text-xs font-bold text-[#A61936]">
-                  {nameError}
-                </p>
+                <p className="mt-1.5 text-xs font-bold text-[#A61936]">{nameError}</p>
+              )}
+            </div>
+
+            {/* 2) سؤال الجاهزية + الـ checkbox */}
+            <div className="mb-5 bg-[#F2EFE6] p-4 rounded-2xl border border-[#0B2D50]/15 text-center">
+              <h3 className="text-sm font-bold text-[#0B2D50] mb-3">
+                جاهز تكون جزء من الرحلة؟
+              </h3>
+              <label className="inline-flex items-center gap-3 cursor-pointer select-none bg-white px-5 py-3 rounded-xl border border-[#0B2D50]/20 shadow-sm active:scale-95 transition-transform">
+                <input
+                  type="checkbox"
+                  checked={isReady}
+                  onChange={(e) => {
+                    setIsReady(e.target.checked);
+                    setReadyError('');
+                  }}
+                  className="w-6 h-6 rounded focus:ring-[#A61936] accent-[#A61936]"
+                />
+                <span className="text-base font-extrabold text-[#0B2D50]">
+                  {isReady ? 'أنا جاهز ومستعد! 🚀' : 'اضغط هنا لتأكيد جاهزيتك'}
+                </span>
+              </label>
+              {readyError && (
+                <p className="mt-2 text-xs font-bold text-[#A61936]">{readyError}</p>
               )}
             </div>
 
@@ -241,10 +239,11 @@ function ParticipantRegistrationPage({
               </div>
             )}
 
+            {/* 3) زر الانضمام */}
             <button
               type="submit"
               disabled={registrationStatus === 'submitting'}
-              className="w-full py-4 rounded-2xl bg-[#A61936] text-white font-black text-base shadow-lg hover:bg-[#8e142d] active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-4 rounded-2xl bg-[#A61936] text-white font-black text-base shadow-lg hover:bg-[#8e142d] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {registrationStatus === 'submitting' ? (
                 <>
@@ -254,7 +253,7 @@ function ParticipantRegistrationPage({
               ) : (
                 <>
                   <Sparkles className="w-5 h-5" />
-                  <span>انضم الآن </span>
+                  <span>انضم الآن</span>
                 </>
               )}
             </button>
@@ -262,7 +261,6 @@ function ParticipantRegistrationPage({
         )}
       </main>
 
-      {/* ترويسة سفلية */}
       <footer className="py-4 text-xs font-bold text-[#0B2D50]/50">
         جميع الحقوق محفوظة © شباب+ 2026
       </footer>
@@ -289,7 +287,6 @@ function LiveEventDisplay({
 
   return (
     <div className="min-h-screen bg-[#0B2D50] text-white flex flex-col justify-between p-6 sm:p-10 relative overflow-hidden">
-      {/* خلفية تفاعلية تتأثر بنبض الجاهزية */}
       {activePulse && (
         <div
           className={`absolute inset-0 pointer-events-none transition-opacity duration-500 z-0 ${
@@ -300,7 +297,6 @@ function LiveEventDisplay({
         />
       )}
 
-      {/* شريط الأدوات العلوي للشاشة الكبرى */}
       <div className="relative z-10 flex items-center justify-between border-b border-white/10 pb-6">
         <div className="flex items-center gap-4">
           <ShababPlusLogo className="w-16 h-16" customUrl={customLogoUrl} />
@@ -336,7 +332,6 @@ function LiveEventDisplay({
         </div>
       </div>
 
-      {/* شريط الإنجاز (Progress Bar) */}
       <div className="relative z-10 my-6">
         <div className="flex justify-between items-center text-sm font-bold text-white/80 mb-2">
           <span>نسبة الجاهزية والاكتمال</span>
@@ -350,7 +345,6 @@ function LiveEventDisplay({
         </div>
       </div>
 
-      {/* شبكة الأسماء المباشرة الحية */}
       <div className="relative z-10 flex-1 my-4 bg-white/5 backdrop-blur-md rounded-3xl p-6 border border-white/10 flex flex-col justify-start">
         <h2 className="text-lg font-bold text-white/80 mb-4 flex items-center gap-2">
           <Users className="w-5 h-5 text-[#A61936]" />
@@ -381,7 +375,6 @@ function LiveEventDisplay({
         )}
       </div>
 
-      {/* الترويسة السفلية المؤثرة */}
       <div className="relative z-10 flex flex-wrap items-center justify-between text-xs font-bold text-white/50 border-t border-white/10 pt-4">
         <div>حالة الاتصال: {isConnected ? 'متصل 🟢' : 'منقطع 🔴'}</div>
         {activePulse && (
@@ -399,7 +392,9 @@ function LiveEventDisplay({
 // 5. مكون عرض الـ QR Code للجمهور في القاعة
 // ============================================================================
 function QrCodePresentation({ canonicalUrl, customLogoUrl, onOpenSettings }) {
-  const displayUrl = canonicalUrl || typeof window !== 'undefined' ? window.location.href : 'https://shabab-plus.app';
+  const displayUrl =
+    canonicalUrl ||
+    (typeof window !== 'undefined' ? window.location.href : 'https://shabab-plus.app');
 
   return (
     <div className="min-h-screen bg-[#0B2D50] text-white flex flex-col items-center justify-center p-6 text-center">
@@ -412,7 +407,6 @@ function QrCodePresentation({ canonicalUrl, customLogoUrl, onOpenSettings }) {
       </p>
 
       <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl border-4 border-[#A61936]">
-        {/* تمثيل الـ QR Code */}
         <div className="w-64 h-64 sm:w-80 sm:h-80 bg-gray-900 rounded-2xl flex items-center justify-center text-white relative overflow-hidden border-2 border-black">
           <QrCode className="w-48 h-48 sm:w-60 sm:h-60 text-white" />
           <div className="absolute inset-0 bg-white/5 flex items-center justify-center">
@@ -536,7 +530,7 @@ function OrganizerConfigAndTests({
 }
 
 // ============================================================================
-// 7. التطبيق الرئيسي (App) 
+// 7. التطبيق الرئيسي (App)
 // ============================================================================
 export default function App() {
   const [activeView, setActiveView] = useState(() => {
@@ -552,7 +546,6 @@ export default function App() {
     return 'register';
   });
 
-  // المنظم يبقى مسجّل دخوله طالما التبويب مفتوح (حتى بعد تحديث الصفحة)
   const [isOrganizerAuthenticated, setIsOrganizerAuthenticated] = useState(() => {
     try {
       return typeof window !== 'undefined' && window.sessionStorage.getItem('shabab_organizer') === '1';
@@ -562,7 +555,6 @@ export default function App() {
   });
   const [organizerPasscode, setOrganizerPasscode] = useState('');
   const [passcodeError, setPasscodeError] = useState(false);
-  const [showPasscodeModal, setShowPasscodeModal] = useState(false);
 
   const [user, setUser] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -580,8 +572,8 @@ export default function App() {
 
   const [rehearsalSuffix, setRehearsalSuffix] = useState('');
 
-  const [isReadyChecked, setIsReadyChecked] = useState(false);
-  const [checkboxSyncState, setCheckboxSyncState] = useState('idle');
+  const [, setIsReadyChecked] = useState(false);
+  const [, setCheckboxSyncState] = useState('idle');
   const [activePulse, setActivePulse] = useState(null);
   const [pulseQueue, setPulseQueue] = useState([]);
   const processedPulseIdsRef = useRef(new Set());
@@ -610,7 +602,6 @@ export default function App() {
     }
   }, []);
 
-  // أي رابط منظم (#/display, #/qr, ...) يتم تتبعه عند تغيير الـ hash
   useEffect(() => {
     const onHashChange = () => {
       const hash = window.location.hash.replace('#', '');
@@ -650,17 +641,8 @@ export default function App() {
     navigateTo('register');
   };
 
-  // الزائر العادي لا يرى إلا شاشة التسجيل؛ باقي الشاشات تحتاج رمز المنظم
   const needsOrganizerLogin = activeView !== 'register' && !isOrganizerAuthenticated;
   const effectiveView = needsOrganizerLogin ? 'register' : activeView;
-
-  const handleRequestOrganizerAccess = (targetView = 'display') => {
-    if (isOrganizerAuthenticated) {
-      navigateTo(targetView);
-    } else {
-      setShowPasscodeModal(true);
-    }
-  };
 
   useEffect(() => {
     const initAuth = async () => {
@@ -678,7 +660,6 @@ export default function App() {
         }
       } catch (err) {
         console.warn('Firebase Auth fallback enabled:', err);
-        // التبديل التلقائي للمستخدم الافتراضي للمعاينة
         setUser({ uid: 'local_preview_user' });
         setIsConnected(true);
       }
@@ -705,11 +686,7 @@ export default function App() {
       return;
     }
 
-    const configDocRef = doc(
-      db,
-      COLLECTIONS.EVENT_CONFIG,
-      'active_config'
-    );
+    const configDocRef = doc(db, COLLECTIONS.EVENT_CONFIG, 'active_config');
 
     const unsubConfig = onSnapshot(
       configDocRef,
@@ -728,16 +705,13 @@ export default function App() {
           }));
         }
       },
-      (err) => {
+      () => {
         console.warn('Config listener fallback active');
         setIsConnected(true);
       }
     );
 
-    const regsColRef = collection(
-      db,
-      COLLECTIONS.REGISTRATIONS
-    );
+    const regsColRef = collection(db, COLLECTIONS.REGISTRATIONS);
 
     const unsubRegs = onSnapshot(
       regsColRef,
@@ -768,16 +742,13 @@ export default function App() {
         list.sort((a, b) => b.createdAt - a.createdAt);
         setRegistrations(list);
       },
-      (err) => {
+      () => {
         console.warn('Registrations listener fallback active');
         setIsConnected(true);
       }
     );
 
-    const pulsesColRef = collection(
-      db,
-      COLLECTIONS.TRANSIENT_PULSES
-    );
+    const pulsesColRef = collection(db, COLLECTIONS.TRANSIENT_PULSES);
 
     const unsubPulses = onSnapshot(
       pulsesColRef,
@@ -823,7 +794,7 @@ export default function App() {
           setPulseQueue((prev) => [...prev, ...incomingPulses]);
         }
       },
-      (err) => {
+      () => {
         console.warn('Pulses listener fallback active');
       }
     );
@@ -894,11 +865,7 @@ export default function App() {
         return;
       }
 
-      const pulseDocRef = doc(
-        db,
-        COLLECTIONS.TRANSIENT_PULSES,
-        interactionId
-      );
+      const pulseDocRef = doc(db, COLLECTIONS.TRANSIENT_PULSES, interactionId);
 
       const transientPayload = {
         eventId: eventConfig.eventId,
@@ -914,7 +881,6 @@ export default function App() {
           deleteDoc(pulseDocRef).catch(() => {});
         }, 6000);
       } catch (err) {
-        // الانهيار الآمن المحلي
         setActivePulse(newPulse);
         setCheckboxSyncState('delivered');
       }
@@ -922,8 +888,9 @@ export default function App() {
     [user, eventConfig.eventId]
   );
 
+  // التسجيل: يحفظ الاسم ثم يرسل نبضة "جاهز" للشاشة الكبيرة
   const handleParticipantRegistration = useCallback(
-    async (validatedFullName) => {
+    async (validatedFullName, isReady = true) => {
       if (registrationStatus === 'submitting') return;
       setRegistrationStatus('submitting');
       setRegistrationError('');
@@ -939,33 +906,28 @@ export default function App() {
       if (!isFirebaseAvailable || !db) {
         setRegistrations((prev) => [newRecord, ...prev]);
         setRegistrationStatus('success');
+        if (isReady) sendTransientCheckboxPulse(true);
         return;
       }
 
-      const regDocRef = doc(
-        db,
-        'registrations',
-        regDocId
-      );
+      const regDocRef = doc(db, COLLECTIONS.REGISTRATIONS, regDocId);
 
       try {
-        const permanentRegistrationRecord = {
+        await setDoc(regDocRef, {
           displayName: validatedFullName,
           createdAt: Date.now(),
           eventId: eventConfig.eventId
-        };
-
-        // الكتابة مباشرة دون فحص سابق لتجنب أي تعليق
-        await setDoc(regDocRef, permanentRegistrationRecord);
+        });
         setRegistrationStatus('success');
+        if (isReady) sendTransientCheckboxPulse(true);
       } catch (err) {
         console.warn('Firebase registration error, fallback to local:', err);
-        // التخزين المحلي الاحتياطي لضمان عمل الواجهة دائماً
         setRegistrations((prev) => [newRecord, ...prev]);
         setRegistrationStatus('success');
+        if (isReady) sendTransientCheckboxPulse(true);
       }
     },
-    [user, registrationStatus, currentBrowserRegistrationId, eventConfig.eventId]
+    [registrationStatus, currentBrowserRegistrationId, eventConfig.eventId, sendTransientCheckboxPulse]
   );
 
   const handleSaveOrganizerConfig = useCallback(
@@ -979,18 +941,14 @@ export default function App() {
 
       if (!isFirebaseAvailable || !db) return;
 
-      const configDocRef = doc(
-        db,
-        COLLECTIONS.EVENT_CONFIG,
-        'active_config'
-      );
+      const configDocRef = doc(db, COLLECTIONS.EVENT_CONFIG, 'active_config');
       try {
         await setDoc(configDocRef, updated);
       } catch (err) {
         console.warn('Saved config locally only');
       }
     },
-    [user, eventConfig]
+    [eventConfig]
   );
 
   const handleTriggerBurstPulses = useCallback(async () => {
@@ -1009,24 +967,22 @@ export default function App() {
           return;
         }
 
-        const pulseRef = doc(
-          db,
-          COLLECTIONS.TRANSIENT_PULSES,
-          interactionId
-        );
+        const pulseRef = doc(db, COLLECTIONS.TRANSIENT_PULSES, interactionId);
         setDoc(pulseRef, {
           eventId: eventConfig.eventId,
           interactionId,
           action: act,
           createdAt: Date.now()
-        }).then(() => {
-          setTimeout(() => deleteDoc(pulseRef).catch(() => {}), 6000);
-        }).catch(() => {
-          setActivePulse(pulse);
-        });
+        })
+          .then(() => {
+            setTimeout(() => deleteDoc(pulseRef).catch(() => {}), 6000);
+          })
+          .catch(() => {
+            setActivePulse(pulse);
+          });
       }, idx * 220);
     });
-  }, [user, eventConfig.eventId]);
+  }, [eventConfig.eventId]);
 
   const handleSimulateNewParticipant = useCallback(
     async (name) => {
@@ -1044,11 +1000,7 @@ export default function App() {
         return;
       }
 
-      const regRef = doc(
-        db,
-        COLLECTIONS.REGISTRATIONS,
-        simId
-      );
+      const regRef = doc(db, COLLECTIONS.REGISTRATIONS, simId);
       try {
         await setDoc(regRef, {
           displayName: name,
@@ -1059,7 +1011,7 @@ export default function App() {
         setRegistrations((prev) => [newRecord, ...prev]);
       }
     },
-    [user, eventConfig.eventId]
+    [eventConfig.eventId]
   );
 
   const handleResetBrowserTokenForRehearsal = useCallback(() => {
@@ -1079,6 +1031,16 @@ export default function App() {
     }
   };
 
+  const navButtonClass = (view) =>
+    `inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+      activeView === view ? 'bg-[#A61936] text-white shadow' : 'text-white/80 hover:bg-white/10'
+    }`;
+
+  const bottomButtonClass = (view) =>
+    `flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+      activeView === view ? 'bg-[#A61936] text-white shadow-md' : 'text-white/70 hover:bg-white/10'
+    }`;
+
   return (
     <div
       dir="rtl"
@@ -1088,7 +1050,7 @@ export default function App() {
         isOrganizerAuthenticated ? 'pb-16' : ''
       }`}
     >
-      {/* نافذة رمز المنظم: تظهر فقط لمن يحاول فتح شاشة غير التسجيل */}
+      {/* نافذة رمز المنظم */}
       {needsOrganizerLogin && (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <form
@@ -1157,54 +1119,22 @@ export default function App() {
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => navigateTo('display')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeView === 'display'
-                    ? 'bg-[#A61936] text-white shadow'
-                    : 'text-white/80 hover:bg-white/10'
-                }`}
-              >
+              <button type="button" onClick={() => navigateTo('display')} className={navButtonClass('display')}>
                 <Monitor className="w-4 h-4" />
                 <span>شاشة القاعة</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => navigateTo('split')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeView === 'split'
-                    ? 'bg-[#A61936] text-white shadow'
-                    : 'text-white/80 hover:bg-white/10'
-                }`}
-              >
+              <button type="button" onClick={() => navigateTo('split')} className={navButtonClass('split')}>
                 <Columns className="w-4 h-4" />
                 <span>المعاينة المزدوجة</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => navigateTo('qr')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeView === 'qr'
-                    ? 'bg-[#A61936] text-white shadow'
-                    : 'text-white/80 hover:bg-white/10'
-                }`}
-              >
+              <button type="button" onClick={() => navigateTo('qr')} className={navButtonClass('qr')}>
                 <QrCode className="w-4 h-4" />
                 <span>رمز QR</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => navigateTo('config')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  activeView === 'config'
-                    ? 'bg-[#A61936] text-white shadow'
-                    : 'text-white/80 hover:bg-white/10'
-                }`}
-              >
+              <button type="button" onClick={() => navigateTo('config')} className={navButtonClass('config')}>
                 <Settings className="w-4 h-4" />
                 <span>الإعدادات</span>
               </button>
@@ -1233,9 +1163,6 @@ export default function App() {
                   onRegisterSubmit={handleParticipantRegistration}
                   registrationStatus={registrationStatus}
                   registrationError={registrationError}
-                  checked={isReadyChecked}
-                  onToggleCheckbox={sendTransientCheckboxPulse}
-                  checkboxSyncState={checkboxSyncState}
                   customLogoUrl={eventConfig.customLogoDataUrl}
                   isConnected={isConnected}
                 />
@@ -1261,7 +1188,7 @@ export default function App() {
                 <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
                   <div className="mb-4 rounded-2xl bg-[#0B2D50] text-white px-5 py-3 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
                     <span className="font-bold">
-                      شاشة المعاينة المزدوجة: اضغط وتفاعل من هاتف المشارك (يميناً) لتشاهد التحديث السريع في القاعة (يساراً)!
+                      شاشة المعاينة المزدوجة: سجّل من هاتف المشارك (يميناً) لتشاهد التحديث السريع في القاعة (يساراً)!
                     </span>
                     <button
                       type="button"
@@ -1278,13 +1205,11 @@ export default function App() {
                         📱 شاشة المشارك (تفتح على الجوال)
                       </div>
                       <ParticipantRegistrationPage
+                        key={rehearsalSuffix}
                         existingRegistration={existingRegistrationForBrowser}
                         onRegisterSubmit={handleParticipantRegistration}
                         registrationStatus={registrationStatus}
                         registrationError={registrationError}
-                        checked={isReadyChecked}
-                        onToggleCheckbox={sendTransientCheckboxPulse}
-                        checkboxSyncState={checkboxSyncState}
                         customLogoUrl={eventConfig.customLogoDataUrl}
                         isConnected={isConnected}
                       />
@@ -1342,63 +1267,39 @@ export default function App() {
         })()}
       </main>
 
-      {/* شريط التنقل السفلي السريع والدائم لرؤية جميع الشاشات بسهولة */}
+      {/* شريط التنقل السفلي للمنظمين */}
       {isOrganizerAuthenticated && (
-      <div className="fixed bottom-3 left-1/2 transform -translate-x-1/2 z-50 bg-[#0B2D50]/95 backdrop-blur-md text-white px-4 py-2 rounded-2xl shadow-2xl border border-white/20 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => navigateTo('register')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-            activeView === 'register'
-              ? 'bg-[#A61936] text-white shadow-md'
-              : 'text-white/70 hover:bg-white/10'
-          }`}
-        >
-          <Smartphone className="w-4 h-4" />
-          <span>📱 شاشة المشارك</span>
-        </button>
+        <div className="fixed bottom-3 left-1/2 transform -translate-x-1/2 z-50 bg-[#0B2D50]/95 backdrop-blur-md text-white px-4 py-2 rounded-2xl shadow-2xl border border-white/20 flex items-center gap-2">
+          <button type="button" onClick={() => navigateTo('register')} className={bottomButtonClass('register')}>
+            <Smartphone className="w-4 h-4" />
+            <span>📱 شاشة المشارك</span>
+          </button>
 
-        <div className="w-px h-5 bg-white/20" />
+          <div className="w-px h-5 bg-white/20" />
 
-        <button
-          type="button"
-          onClick={() => navigateTo('display')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-            activeView === 'display'
-              ? 'bg-[#A61936] text-white shadow-md'
-              : 'text-white/70 hover:bg-white/10'
-          }`}
-        >
-          <Monitor className="w-4 h-4" />
-          <span>🖥️ شاشة القاعة</span>
-        </button>
+          <button type="button" onClick={() => navigateTo('display')} className={bottomButtonClass('display')}>
+            <Monitor className="w-4 h-4" />
+            <span>🖥️ شاشة القاعة</span>
+          </button>
 
-        <div className="w-px h-5 bg-white/20" />
+          <div className="w-px h-5 bg-white/20" />
 
-        <button
-          type="button"
-          onClick={() => navigateTo('split')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-            activeView === 'split'
-              ? 'bg-[#A61936] text-white shadow-md'
-              : 'text-white/70 hover:bg-white/10'
-          }`}
-        >
-          <Columns className="w-4 h-4" />
-          <span>👀 الشاشتين معاً</span>
-        </button>
+          <button type="button" onClick={() => navigateTo('split')} className={bottomButtonClass('split')}>
+            <Columns className="w-4 h-4" />
+            <span>👀 الشاشتين معاً</span>
+          </button>
 
-        <div className="w-px h-5 bg-white/20" />
+          <div className="w-px h-5 bg-white/20" />
 
-        <button
-          type="button"
-          onClick={handleOrganizerLogout}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-white/70 hover:bg-white/10"
-        >
-          <Unlock className="w-4 h-4" />
-          <span>خروج</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleOrganizerLogout}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-white/70 hover:bg-white/10"
+          >
+            <Unlock className="w-4 h-4" />
+            <span>خروج</span>
+          </button>
+        </div>
       )}
     </div>
   );
